@@ -476,14 +476,15 @@ function detectBrandsSmart(html){
 }
 function decodeEnt(s){return (s||'').replace(/&amp;/g,'&').replace(/&#0?39;/g,"'").replace(/&#x27;/gi,"'").replace(/&quot;/g,'"').replace(/&#0?38;/g,'&').replace(/\s+/g,' ').trim();}
 function domainName(url){try{let host=new URL(url).hostname.replace(/^www\./,'');let base=host.split('.')[0];return base.replace(/[-_]/g,' ').replace(/\b\w/g,c=>c.toUpperCase());}catch(e){return 'New Dealership';}}
+const BAD_TITLE=/attention required|just a moment|access denied|are you (a )?(human|robot)|verify|verifying|please wait|cloudflare|forbidden|error 5\d\d|^4\d\d|not found|blocked|security check|ddos/i;
 function extractName(html,url){
   let m=html.match(/<meta[^>]+(?:property|name)=["']og:site_name["'][^>]*?content=["']([^"']+)["']/i)
       ||html.match(/content=["']([^"']+)["'][^>]*?(?:property|name)=["']og:site_name["']/i);
-  if(m){const n=decodeEnt(m[1]);if(n.length>=3&&n.length<=60)return n;}
+  if(m){const n=decodeEnt(m[1]);if(n.length>=3&&n.length<=60&&!BAD_TITLE.test(n))return n;}
   m=html.match(/<title[^>]*>([^<]+)<\/title>/i);
-  if(m){
+  if(m&&!BAD_TITLE.test(m[1])){
     const segs=m[1].split(/[|–—:·]|\s-\s/).map(s=>decodeEnt(s).replace(/^\s*(home|welcome to|official site)\s*/ig,'').trim());
-    const good=segs.find(s=>s.length>=3&&s.length<=60&&!/^(home|menu|new|used|inventory|specials)$/i.test(s));
+    const good=segs.find(s=>s.length>=3&&s.length<=60&&!/^(home|menu|new|used|inventory|specials)$/i.test(s)&&!BAD_TITLE.test(s));
     if(good)return good;
   }
   return domainName(url);
