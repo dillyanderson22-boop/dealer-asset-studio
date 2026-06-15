@@ -426,6 +426,7 @@ async function saveBrands(dealerId){
 /* ===================== SCANNER ===================== */
 function setStatus(msg,type){const s=document.getElementById('status');if(!s)return;s.className='status show '+type;s.innerHTML=msg;}
 const PROXIES=[
+  {make:u=>`/api/scrape?url=${encodeURIComponent(u)}`},
   {make:u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`},
   {make:u=>`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`},
   {make:u=>`https://corsproxy.io/?url=${encodeURIComponent(u)}`},
