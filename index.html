@@ -147,13 +147,36 @@
   .scanbox{margin-top:12px;display:none}
   .scanbox.show{display:block}
   .scanbox textarea{width:100%;min-height:110px;border:1px solid var(--line);border-radius:11px;padding:12px;font-size:13px;font-family:inherit;resize:vertical;outline:none}
+
+  /* settings + generation */
+  .seg-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+  .toggle{display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none;font-size:13.5px}
+  .toggle input{width:18px;height:18px;accent-color:#0a0a0a}
+  .keyrow{display:flex;gap:8px;align-items:center}
+  .keyrow input{flex:1}
+  .pill-ok{display:inline-block;font-size:11px;font-weight:700;color:#0a7f55;background:#f0f9f4;border:1px solid #cdeeda;border-radius:20px;padding:3px 10px}
+  .pill-no{display:inline-block;font-size:11px;font-weight:700;color:#a33;background:#fbf1f1;border:1px solid #f0d6d6;border-radius:20px;padding:3px 10px}
+  .genpanel{border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 18px;background:var(--panel2)}
+  .genpanel h4{margin:0 0 4px;font-size:14px}
+  .genpanel p{margin:0 0 12px;color:var(--mut);font-size:12.5px}
+  .seasonpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:7px;margin:10px 0 14px}
+  .seasonpick label{display:flex;align-items:center;gap:7px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:#fff;cursor:pointer}
+  .seasonpick input{accent-color:#0a0a0a}
+  .genbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .genprog{display:none;align-items:center;gap:10px;font-size:13px;color:#444;margin-top:12px}
+  .genprog.show{display:flex}
+  .acard .editbtn{position:absolute;top:8px;right:8px;background:rgba(10,10,10,.82);color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:600;padding:5px 9px;cursor:pointer;opacity:0;transition:.13s}
+  .acard:hover .editbtn{opacity:1}
+  .acard .editbtn:hover{background:#0a0a0a}
+  .logoimg.real{object-fit:contain;background:#fff}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="top">
     <div class="logo">◆</div>
-    <div><h1>Dealer Asset Studio</h1></div>
+    <div style="flex:1"><h1>Dealer Asset Studio</h1></div>
+    <button class="btn ghost sm" onclick="openSettings()" title="Settings">⚙ Settings</button>
   </header>
   <p class="sub">Organize emblem artwork by dealership and manufacturer, then send the dealership a share list to approve.</p>
 
@@ -296,7 +319,7 @@ async function renderDealer(dealerId){
     html+=`<div class="empty"><b>No manufacturers yet.</b><br>Use “Auto-detect brands” to read them from the site, or “Add manufacturer” to pick them yourself.</div>`;
   }else{
     html+=`<div class="grid brands">`+brands.map(b=>{
-      const logo=b.logo?`<img class="logoimg" src="${freshURL(b.logo)}" alt="${esc(b.name)}">`:wordmark(b.name,b.color,'big');
+      const logo=logoHTML(b,true);
       return `<div class="bcard" onclick="go({name:'brand',brandId:'${b.id}'})">
         <div class="logobox">${logo}</div>
         <div class="bname">${esc(b.name)}</div>
@@ -313,7 +336,8 @@ async function renderBrand(brandId){
   if(!b){return go({name:'home'});}
   const d=await dbGet('dealers',b.dealerId);
   const assets=(await dbByIndex('assets','brandId',brandId)).sort((a,b)=>b.addedAt-a.addedAt);
-  const logo=b.logo?`<img class="logoimg" style="width:120px;height:64px" src="${freshURL(b.logo)}">`:wordmark(b.name,b.color,'big');
+  const logo=logoHTML(b,true);
+  const aiOn=hasKey();
   let html=`<div class="crumb"><a onclick="go({name:'home'})">Dealerships</a><span class="sep">/</span>
     <a onclick="go({name:'dealer',dealerId:'${d.id}'})">${esc(d.name)}</a><span class="sep">/</span><b>${esc(b.name)}</b></div>
     <button class="btn ghost sm" onclick="go({name:'dealer',dealerId:'${d.id}'})" style="margin-bottom:16px">← Back to ${esc(d.name)}</button>
@@ -327,6 +351,19 @@ async function renderBrand(brandId){
       </div>
     </div>
     <div style="height:14px"></div>
+    <div class="genpanel">
+      <h4>✨ AI generate for ${esc(b.name)}</h4>
+      <p>${aiOn?`Pick seasons, then create badges or backgrounds in ${esc(b.name)}’s colors. Each image saves as its own downloadable file.`:'Add an OpenAI or Gemini API key in Settings to turn on one-click image generation.'}</p>
+      ${aiOn?`<div class="seasonpick">${CAMPAIGNS.map((c,i)=>`<label><input type="checkbox" value="${c.id}" ${i<4?'checked':''}>${esc(c.label)}</label>`).join('')}</div>
+      <div class="genbar">
+        <button class="btn" onclick="runGenerate('${b.id}','badge')">Generate badges</button>
+        <button class="btn ghost" onclick="runGenerate('${b.id}','background')">Generate backgrounds</button>
+        <button class="btn ghost" onclick="generatePromptsModal('${b.id}')">Copy text prompts</button>
+      </div>
+      <div class="genprog" id="genprog"></div>`
+      :`<div class="genbar"><button class="btn" onclick="openSettings()">⚙ Open Settings</button>
+        <button class="btn ghost" onclick="generatePromptsModal('${b.id}')">Copy text prompts instead</button></div>`}
+    </div>
     <label class="dropzone" id="dropzone">
       <div class="big">⬆</div><div><b>Click to upload</b> or drag &amp; drop emblem images here</div>
       <div style="font-size:12px;margin-top:5px">Several at once is fine · PNG, JPG, SVG, WebP</div>
@@ -338,6 +375,7 @@ async function renderBrand(brandId){
   }else{
     html+=`<div class="grid assets">`+assets.map(a=>`
       <div class="acard">
+        ${aiOn?`<button class="editbtn" onclick="editAssetModal('${a.id}')">✨ Edit</button>`:''}
         <img class="img" src="${freshURL(a.blob)}" alt="${esc(a.name)}">
         <div class="arow"><span class="aname" title="${esc(a.name)}">${esc(a.name)}</span>
           <button class="iconbtn" title="Rename" onclick="renameAsset('${a.id}')">✎</button>
@@ -568,6 +606,7 @@ async function renderShare(dealerId){
   shareSel=new Set();
   let html=`<div class="crumb"><a onclick="go({name:'home'})">Dealerships</a><span class="sep">/</span>
     <a onclick="go({name:'dealer',dealerId:'${d.id}'})">${esc(d.name)}</a><span class="sep">/</span><b>Share list</b></div>
+    <button class="btn ghost sm" onclick="go({name:'dealer',dealerId:'${d.id}'})" style="margin-bottom:16px">← Back to ${esc(d.name)}</button>
     <div class="title-row"><h2>Build share list</h2>
       <div style="display:flex;gap:10px;align-items:center">
         <span class="count-pill"><b id="selCount">0</b> selected</span>
@@ -766,6 +805,105 @@ function copyPrompt(key,btn){
 }
 function fallbackCopy(text,done){const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);done&&done();}
 
+/* ===================== SETTINGS ===================== */
+function loadSettings(){try{return JSON.parse(localStorage.getItem('das_settings')||'{}');}catch(e){return {};}}
+let SETTINGS=loadSettings();
+function activeKey(){return SETTINGS.provider==='gemini'?(SETTINGS.geminiKey||''):(SETTINGS.openaiKey||'');}
+function hasKey(){return !!activeKey();}
+function openSettings(){
+  const s=SETTINGS;modal.classList.add('wide');
+  modal.innerHTML=`<h3>Settings</h3><p class="h">Add an image-generation API key to auto-create badges &amp; backgrounds. Your key is stored only in this browser.</p>
+    <div class="field"><label>Image provider</label>
+      <select id="setProvider"><option value="openai" ${s.provider!=='gemini'?'selected':''}>OpenAI · GPT Image</option>
+      <option value="gemini" ${s.provider==='gemini'?'selected':''}>Google Gemini · Imagen</option></select></div>
+    <div class="field"><label>OpenAI API key ${s.openaiKey?'<span class="pill-ok">saved</span>':'<span class="pill-no">none</span>'}</label>
+      <input id="setOpenai" type="password" placeholder="sk-..." value="${esc(s.openaiKey||'')}"></div>
+    <div class="field"><label>Gemini API key ${s.geminiKey?'<span class="pill-ok">saved</span>':'<span class="pill-no">none</span>'}</label>
+      <input id="setGemini" type="password" placeholder="AIza..." value="${esc(s.geminiKey||'')}"></div>
+    <div class="field"><label class="toggle"><input type="checkbox" id="setLogos" ${s.autoLogos?'checked':''}> Auto-load official brand logos (loads live from a public logo service; falls back to a colored wordmark)</label></div>
+    <div class="actions"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" onclick="saveSettingsFromModal()">Save</button></div>
+    <p style="font-size:11.5px;color:var(--mut);margin-top:14px;line-height:1.5">Keys: OpenAI → platform.openai.com/api-keys · Gemini → aistudio.google.com/apikey. Generation uses your provider's paid credits.</p>`;
+  overlay.classList.add('show');
+}
+function saveSettingsFromModal(){
+  SETTINGS={provider:document.getElementById('setProvider').value,
+    openaiKey:document.getElementById('setOpenai').value.trim(),
+    geminiKey:document.getElementById('setGemini').value.trim(),
+    autoLogos:document.getElementById('setLogos').checked};
+  localStorage.setItem('das_settings',JSON.stringify(SETTINGS));closeModal();
+  if(view.name==='brand')renderBrand(view.brandId);else if(view.name==='dealer')renderDealer(view.dealerId);
+}
+
+/* ===================== BRAND LOGOS ===================== */
+const BRAND_DOMAIN={"Acura":"acura.com","Alfa Romeo":"alfaromeo.com","Audi":"audiusa.com","BMW":"bmwusa.com","Buick":"buick.com","Cadillac":"cadillac.com","Chevrolet":"chevrolet.com","Chrysler":"chrysler.com","Dodge":"dodge.com","Fiat":"fiatusa.com","Ford":"ford.com","Genesis":"genesis.com","GMC":"gmc.com","Honda":"honda.com","Hyundai":"hyundaiusa.com","Infiniti":"infinitiusa.com","Jaguar":"jaguarusa.com","Jeep":"jeep.com","Kia":"kia.com","Land Rover":"landroverusa.com","Lexus":"lexus.com","Lincoln":"lincoln.com","Maserati":"maserati.com","Mazda":"mazdausa.com","Mercedes-Benz":"mbusa.com","MINI":"miniusa.com","Mitsubishi":"mitsubishicars.com","Nissan":"nissanusa.com","Porsche":"porsche.com","Ram":"ramtrucks.com","Subaru":"subaru.com","Tesla":"tesla.com","Toyota":"toyota.com","Volkswagen":"vw.com","Volvo":"volvocars.com"};
+function logoHTML(b,big){
+  const wm=wordmark(b.name,b.color,big?'big':'');
+  if(b.logo) return `<img class="logoimg real" ${big?'style="width:120px;height:64px"':''} src="${freshURL(b.logo)}">`;
+  if(SETTINGS.autoLogos && BRAND_DOMAIN[b.name]){
+    const wmAttr=wm.replace(/"/g,'&quot;');
+    return `<img class="logoimg real" ${big?'style="width:120px;height:64px"':''} src="https://logo.clearbit.com/${BRAND_DOMAIN[b.name]}" onerror="this.outerHTML='${wmAttr}'">`;
+  }
+  return wm;
+}
+
+/* ===================== AI IMAGE GENERATION ===================== */
+async function callImage(opts){
+  const provider=SETTINGS.provider||'openai';const apiKey=activeKey();
+  if(!apiKey) throw new Error('No API key set — open Settings to add one.');
+  const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({provider,apiKey,mode:opts.mode||'generate',prompt:opts.prompt,image:opts.image||null,size:opts.size||'1024x1024'})});
+  const j=await r.json().catch(()=>({error:'Bad response from the image server.'}));
+  if(!r.ok||j.error) throw new Error(j.error||('HTTP '+r.status));
+  return j.image;
+}
+function dataURLtoBlob(d){const c=d.split(',');const mime=(c[0].match(/:(.*?);/)||[])[1]||'image/png';const bin=atob(c[1]);const a=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)a[i]=bin.charCodeAt(i);return new Blob([a],{type:mime});}
+function aiBadgePrompt(dealer,brand,color,c){const {hero,ribbon}=splitHead(c);
+  return `Photorealistic 3D metallic automotive dealership emblem badge, square, on a plain white background. Glossy chrome and brushed-silver beveled crest / shield with a deep glossy ${color} ${brand} enamel center. A silver banner ribbon reads "${dealer}". A large 3D chrome headline reads "${hero}". A lower silver ribbon reads "${ribbon}". Seasonal decoration: ${c.motif}. Premium studio lighting, sharp reflections, ultra-detailed. Use ${brand} brand colors (${color} with chrome silver). Spell all text exactly as quoted. No watermark.`;}
+function aiBackgroundPrompt(dealer,brand,color,c){
+  return `Wide cinematic promotional background for a ${brand} dealership "${c.label}" sales event. ${c.bg}. Built around ${color} with chrome-silver light streaks, photorealistic, premium and clean, high resolution. Leave open uncluttered space for text. Important: no text, no letters and no logos in the image — background art only.`;}
+
+async function runGenerate(brandId,kind){
+  if(!hasKey()){openSettings();return;}
+  const b=await dbGet('brands',brandId),d=await dbGet('dealers',b.dealerId);
+  const sel=[...document.querySelectorAll('.seasonpick input:checked')].map(x=>x.value);
+  const camps=CAMPAIGNS.filter(c=>sel.includes(c.id));
+  if(!camps.length){alert('Pick at least one season above.');return;}
+  const prog=document.getElementById('genprog');if(prog)prog.classList.add('show');
+  let done=0;const total=camps.length;
+  for(const c of camps){
+    if(prog)prog.innerHTML=`<span class="spinner"></span>Generating ${kind}${total>1?'s':''} — ${esc(c.label)} (${done+1} of ${total})…`;
+    try{
+      const prompt=kind==='badge'?aiBadgePrompt(d.name,b.name,b.color,c):aiBackgroundPrompt(d.name,b.name,b.color,c);
+      const data=await callImage({mode:'generate',prompt,size:kind==='badge'?'1024x1024':'1536x1024'});
+      await dbPut('assets',{id:uid(),brandId,name:`${b.name} ${c.label} ${kind}`,blob:dataURLtoBlob(data),addedAt:Date.now()});
+      done++;
+    }catch(e){if(prog){prog.innerHTML=`<span class="pill-no">Error: ${esc(e.message)}</span>`;}await new Promise(r=>setTimeout(r,2200));}
+  }
+  if(prog)prog.classList.remove('show');
+  renderBrand(brandId);
+}
+
+/* edit an existing image by prompt */
+async function editAssetModal(id){
+  const a=await dbGet('assets',id);modal.classList.remove('wide');
+  modal.innerHTML=`<h3>Edit image with AI</h3><p class="h">Describe the change to “${esc(a.name)}”. A new edited copy is saved.</p>
+    <div class="field"><label>What should change?</label><input id="editPrompt" placeholder="e.g. add falling snow · make it nighttime · add a big red bow"></div>
+    <div class="actions" id="editActions"><button class="btn ghost" onclick="closeModal()">Cancel</button><button class="btn" onclick="runEdit('${id}')">Generate edit</button></div>`;
+  overlay.classList.add('show');setTimeout(()=>{const e=document.getElementById('editPrompt');if(e)e.focus();},50);
+}
+async function runEdit(id){
+  if(!hasKey()){openSettings();return;}
+  const a=await dbGet('assets',id);const p=(document.getElementById('editPrompt').value||'').trim();
+  if(!p)return;
+  document.getElementById('editActions').innerHTML='<span class="genprog show"><span class="spinner"></span>Editing…</span>';
+  try{
+    const src=await blobToDataURL(a.blob);
+    const out=await callImage({mode:'edit',prompt:p,image:src});
+    await dbPut('assets',{id:uid(),brandId:a.brandId,name:a.name+' (edited)',blob:dataURLtoBlob(out),addedAt:Date.now()});
+    closeModal();renderBrand(a.brandId);
+  }catch(e){document.getElementById('editActions').innerHTML=`<span class="pill-no" style="margin-right:auto">${esc(e.message)}</span><button class="btn ghost" onclick="closeModal()">Close</button>`;}
+}
+
 /* ===================== BOOT ===================== */
 (async()=>{
   try{await openDB();}catch(e){
@@ -779,6 +917,8 @@ window.uploadAssets=uploadAssets;window.uploadLogo=uploadLogo;window.renameAsset
 window.downloadAsset=downloadAsset;window.deleteBrand=deleteBrand;window.deleteDealer=deleteDealer;window.closeModal=closeModal;
 window.toggleShare=toggleShare;window.selectBrandShare=selectBrandShare;window.selectAllShare=selectAllShare;window.generateShareFile=generateShareFile;
 window.generatePromptsModal=generatePromptsModal;window.copyPrompt=copyPrompt;
+window.openSettings=openSettings;window.saveSettingsFromModal=saveSettingsFromModal;
+window.runGenerate=runGenerate;window.editAssetModal=editAssetModal;window.runEdit=runEdit;
 </script>
 </body>
 </html>
