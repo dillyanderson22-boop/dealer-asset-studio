@@ -277,11 +277,13 @@ async function renderDealer(dealerId){
   let totalAssets=0;const counts={};
   for(const b of brands){const a=await dbByIndex('assets','brandId',b.id);counts[b.id]=a.length;totalAssets+=a.length;}
   let html=`<div class="crumb"><a onclick="go({name:'home'})">Dealerships</a><span class="sep">/</span><b>${esc(d.name)}</b></div>
+    <button class="btn ghost sm" onclick="go({name:'home'})" style="margin-bottom:16px">← Back to all dealerships</button>
     <div class="title-row"><h2>${esc(d.name)}</h2>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <button class="btn ghost" onclick="scanDealer('${d.id}')">⟳ Auto-detect brands</button>
         <button class="btn ghost" onclick="addBrandModal('${d.id}')">+ Add manufacturer</button>
         <button class="btn" onclick="go({name:'share',dealerId:'${d.id}'})" ${totalAssets?'':'disabled'}>Create share list →</button>
+        <button class="btn danger" onclick="deleteDealer('${d.id}')">Delete dealership</button>
       </div>
     </div>
     <p class="sub" style="margin:0 0 8px">${d.url?`<a href="${esc(d.url)}" target="_blank" style="color:#0a0a0a">${esc(d.url)}</a> · `:''}${brands.length} manufacturer${brands.length!==1?'s':''} · ${totalAssets} image${totalAssets!==1?'s':''}</p>
@@ -314,6 +316,7 @@ async function renderBrand(brandId){
   const logo=b.logo?`<img class="logoimg" style="width:120px;height:64px" src="${freshURL(b.logo)}">`:wordmark(b.name,b.color,'big');
   let html=`<div class="crumb"><a onclick="go({name:'home'})">Dealerships</a><span class="sep">/</span>
     <a onclick="go({name:'dealer',dealerId:'${d.id}'})">${esc(d.name)}</a><span class="sep">/</span><b>${esc(b.name)}</b></div>
+    <button class="btn ghost sm" onclick="go({name:'dealer',dealerId:'${d.id}'})" style="margin-bottom:16px">← Back to ${esc(d.name)}</button>
     <div class="title-row">
       <div style="display:flex;align-items:center;gap:14px">${logo}<div><h2 style="margin:0">${esc(b.name)}</h2>
         <div class="sub" style="margin:2px 0 0">${assets.length} image${assets.length!==1?'s':''}</div></div></div>
@@ -485,15 +488,27 @@ function extractName(html,url){
   }
   return domainName(url);
 }
+// detect brands from the dealership name + domain (catches JS-rendered sites whose
+// page body is empty but whose name/domain literally says e.g. "buick gmc")
+function hostOf(url){try{return new URL(url).hostname.replace(/^www\./,'').replace(/\.[a-z.]+$/,'');}catch(e){return '';}}
+function detectBrandsFromName(str){
+  const low=(str||'').toLowerCase();
+  return BRANDS.filter(b=>(ALIAS[b.n]||[b.n.toLowerCase()]).some(k=>k.length>=3 && low.includes(k)));
+}
+function mergeBrands(a,b){const seen=new Set(a.map(x=>x.n));b.forEach(x=>{if(!seen.has(x.n)){a.push(x);seen.add(x.n);}});return a;}
 async function fetchSiteInfo(url,onProgress){
+  const hint=hostOf(url);
   for(let i=0;i<PROXIES.length;i++){
     onProgress&&onProgress(i+1,PROXIES.length);
     const html=await fetchVia(PROXIES[i],url);
     if(html&&html.length>200){
-      return {name:extractName(html,url),brands:detectBrandsSmart(html),ok:true};
+      const nm=extractName(html,url);
+      const brands=mergeBrands(detectBrandsSmart(html), detectBrandsFromName(hint+' '+nm));
+      return {name:nm,brands,ok:true};
     }
   }
-  return {name:domainName(url),brands:[],ok:false};
+  const nm=domainName(url);
+  return {name:nm,brands:detectBrandsFromName(hint+' '+nm),ok:false};
 }
 function setLoading(msg,withBar){const s=document.getElementById('status');if(!s)return;
   s.className='status show load';s.innerHTML=`<span class="spinner"></span>${msg}`+(withBar?`<div class="scanbar"><i></i></div>`:'');}
